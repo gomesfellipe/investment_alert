@@ -1,0 +1,67 @@
+---
+title: "Untitled"
+author: "MTBR - ModelThinkingBR"
+date: "3/12/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(purrr)
+library(alphavantager) # https://www.business-science.io/code-tools/2017/09/03/alphavantager-0-1-0.html
+
+
+key <- "TIMTJBAT1ENM1XF1"
+av_api_key(key)
+print(av_api_key())
+
+```
+
+# Quanto investir?
+
+```{r}
+calcular_carteira <- function(entrada = NULL,
+                              renda_fixa = NULL,
+                              renda_variavel = NULL){
+  
+  # Caso input = entrada
+  if(is.null(renda_fixa) & is.null(renda_variavel)){
+    renda_fixa <- entrada * .6
+    renda_variavel <- entrada * .4
+  }
+  
+  # Caso input = renda_variavel
+  if(is.null(renda_fixa) & is.null(entrada)){
+    renda_fixa <- (renda_variavel * 0.6) / 0.4
+    entrada <- renda_fixa + renda_variavel
+  }
+  
+  return(
+    c(entrada = entrada, renda_fixa = renda_fixa, renda_variavel = renda_variavel)
+  )
+}
+
+calcular_carteira(renda_variavel = 10000)
+```
+
+
+
+```{r}
+# carteira = c("BTC-USD", "ITSA4.SA","PETR4.SA",  "GOAU4.SA", "MYPK3.SA", "MGLU3", "COGN3.SA")
+carteira = c("BTC-USD", "ITSA4.SA","PETR4.SA", "MGLU3.SA")
+
+historico <- map(carteira, ~quantmod::getSymbols(.x, auto.assign = F)) %>% `names<-`(carteira)
+```
+
+```{r}
+request <- map(carteira, ~av_get(symbol = .x,
+                                 av_fun = "TIME_SERIES_INTRADAY", 
+                                 interval = "15min", # "1min", "5min", "15min", "30min" ou "60min"
+                                 outputsize = "full") # "compact"
+) %>% `names<-`(carteira)
+tidyquant::tq_portfolio()
+
+```
+
+Erro: Thank you for using Alpha Vantage! Our standard API call frequency is 5 calls per minute and 500 calls per day.
