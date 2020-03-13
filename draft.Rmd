@@ -15,6 +15,7 @@ library(ggplot)
 library(GGally)
 library(forecast)
 
+
 # carteira = c("BTC-USD", "ITSA4.SA","PETR4.SA",  "GOAU4.SA", "MYPK3.SA", "MGLU3", "COGN3.SA")
 
 key <- "TIMTJBAT1ENM1XF1"
@@ -26,25 +27,12 @@ print(av_api_key())
 # Quanto investir?
 
 ```{r}
-calcular_carteira <- function(entrada = NULL,
-                              renda_fixa = NULL,
-                              renda_variavel = NULL,
-                              crypto_moeda = NULL){
+calcular_carteira <- function(renda_variavel = NULL){
   
-  # Caso input = entrada
-  if(is.null(renda_fixa) & is.null(renda_variavel)){
-    renda_fixa <- entrada * .6
-    renda_variavel <- entrada * .3
-    crypto_moeda <- entrada * 0.1
-  }
-  
-  # Caso input = renda_variavel
-  if(is.null(renda_fixa) & is.null(entrada)){
     renda_fixa <- (renda_variavel * 0.6) / 0.3
     crypto_moeda <- renda_variavel / 3
     entrada <- renda_fixa + renda_variavel + crypto_moeda
-  }
-  
+    
   return(
     c(entrada = entrada, 
       renda_fixa = renda_fixa, 
@@ -53,21 +41,31 @@ calcular_carteira <- function(entrada = NULL,
   )
 }
 
-calcular_carteira(entrada = 10000)
 calcular_carteira(renda_variavel = 7500)
 ```
 
-
 ```{r}
-portifolio = c("PETR4.SA", "BTC-USD")
+portifolio = c("PETR4.SA","ITSA4.SA", "BTC-USD")
 ```
 
-
-
 ```{r}
-request <- 
+stocks <- 
   portifolio %>% 
-  map(~getSymbols(.x, auto.assign = F, from = "2019-01-01"))
+  map(~getSymbols(.x, auto.assign = F, from = "2018-01-01"))
+
+stocks[[1]] %>% highcharter::hchart()
+stocks[[2]] %>% highcharter::hchart()
+stocks[[3]] %>% highcharter::hchart()
+
+
+
+portifolio_data <- Reduce(merge, stocks) %>% na.fill(., 0)
+
+itsa4 <- portifolio_data %>% .[,grep("ITSA", colnames(.))]
+petr4 <- portifolio_data %>% .[,grep("PETR", colnames(.))]
+btc <- portifolio_data %>% .[,grep("BTC", colnames(.))]
+
+itsa4 %>% highcharter::hchart()
 ```
 
 ```{r, eval = F}
