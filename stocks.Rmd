@@ -1,0 +1,664 @@
+---
+title: "Untitled"
+author: "MTBR - ModelThinkingBR"
+date: "3/14/2020"
+output: html_document
+---
+
+<!-- Required meta tags -->
+<style>
+<!-- Bootstrap CSS -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous"> 
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F, warning = F)
+key <- "TIMTJBAT1ENM1XF1"
+
+library(dplyr) # manipulacao de dados
+library(purrr) # programacao funcional
+library(tidyquant) # aquisicao de dados financeiros
+library(alphavantager) # api para streaming
+library(knitr) # tabela
+library(kableExtra) # formatar tabela
+library(formattable) # extrasformatar tabela
+library(forecast) # series temporais
+library(patchwork) # organizar plots
+library(fpp3) # series temporais
+library(jsonlite) # requisicao de api
+library(tsibble) # series temporais arrumadas
+library(h2o) # automl
+library(telegram) # conectar bot telegram
+
+h2o.init() # start h2o
+h2o.no_progress() # omitir barra de progresso
+
+ggplot2::theme_set(ggplot2::theme_bw())
+
+kable2 <- function(x){
+  x %>% 
+    kable(format = "html", escape = F) %>%
+    kable_styling(c("striped", "bordered", "hover", "responsive"), full_width = F) 
+}
+```
+
+![](img1.png)
+
+# Por que investir?
+
+Como esta sua situacao financeira?
+
+Caso tenha uma reserva pode ser interessante pensar em investimentos
+
+Diferenca de poupar e investir
+
+**Poupar** é acumular valores no presente para utilizá-los no futuro, o que geralmente envolve mudança de hábitos, pois requer uma redução nos gastos pessoais e familiares.
+
+**Investir** é empregar o dinheiro poupado em aplicações que rendam juros ou outra forma de remuneração ou correção.
+
+Nao existe investimento sem risco
+
+Importancia da segurança financeira
+
+# Montagem da carteira
+
+Após definir a quantidade a ser investida é hora de divessificar a carteira
+
+<div class="row">
+<div class="col-8">
+
+"Talvez você já tenha ouvido falar essa frase alguma vez na sua vida.
+Não colocar todos os ovos na mesma cesta significa que você deve diversificar o seu investimento."  
+
+</div> 
+
+<div class="col-4">
+
+![](ovos_mesm_cesta.png){width=50%}
+
+</div> 
+</div>
+
+Por que diversificar?
+
+proteger os rendimentos diminuindo os riscos
+
+Como dividir?
+
+Para ajudar a dividir a carteira de investimentos com utilizaremos a chamada [regra (ou lei) dos 80](https://www.btgpactualdigital.com/blog/coluna-gustavo-cerbasi/defina-sua-estrategia-entre-renda-fixa-ou-variavel).
+
+A estratégia é a seguinte: subtraia da sua idade o número 80. O resultado dessa conta vai indicar o percentual a ser investido em [renda variável](https://pt.wikipedia.org/wiki/Renda_vari%C3%A1vel)!
+
+Por exemplo, no meu caso: Tenho 26 anos, portanto $80-26 = 54\%$ deverá ser investido em renda variável. Aos 53 anos esse percentual vai cairá para a metade, $27\%$.
+
+A idéias principal por trás desta regra que é que a cada ano que passa, 1% do montante da renda variável deva ser direcionado para a [renda fixa](https://pt.wikipedia.org/wiki/Renda_fixa).
+
+Testar a função `montagem()` para diverentes cenários:
+
+```{r}
+source("montagem.R")
+source("moeda_real.R")
+```
+
+<div class="container">
+<div class="row">
+<div class="col">
+<span class="border border-danger">
+* Entrada de R$20.000,00</span> <span style="color:red">←</span>
+```{r}
+montagem(entrada = 20000, idade = 26)
+```
+</div>
+<div class="col">
+* R$ 10.000,00 em acoes 
+```{r}
+montagem(variavel = 10000, idade = 26)
+```
+</div>
+<div class="w-100"></div>
+<div class="col">
+* R$5.000,00 em tesouro direto 
+```{r}
+montagem(fixa = 5000, idade = 26)
+```
+</div>
+<div class="col">
+* Montagem de R$20.000,00 aos 53 anos 
+```{r}
+montagem(entrada = 20000, idade = 53)
+```
+</div>
+</div>
+</div>
+
+Das configurações assima, utilizaremos a primeira (assinalada em vermelho) como exemplo, onde:
+
+* Entrada: `r moeda_real(montagem(entrada = 20000, idade = 26, return = T)[1])`
+* Renda fixa: `r moeda_real(montagem(entrada = 20000, idade = 26, return = T)[2])`
+* Renda Variavel (Acoes): `r moeda_real(montagem(entrada = 20000, idade = 26, return = T)[3]*.9)`
+* Renda Variavel (Crypt): `r moeda_real(montagem(entrada = 20000, idade = 26, return = T)[3]*.1)` 
+
+## Renda fixa
+
+Normalmente diversificamos nossa renda fixa também pois ... (TODO)
+
+Para avaliar nossa escolha utilizaremos o simulador disponivel no site <https://verios.com.br/> neste [link](https://simulador-tesouro-direto.verios.com.br/):
+
+<center>
+![](tesouro_direto.png){width=100%}
+<small>Fonte: <https://simulador-tesouro-direto.verios.com.br/></small>
+</center>
+
+## Renda variável
+
+Para este exemplo escolhe 2 ações 1 crypto moeda:
+
+* PETR4: Petroleo Brasileiro SA Petrobras Preference Shares
+* ITSA4: Itausa Investimentos Itau SA Preference Shares
+* BTC: Bitcoin 
+
+```{r}
+# portifolio = c("PETR4.SA","FIBR3.SA", "BTC-USD")
+portifolio = c("TUPY3.SA","ELET3.SA", "BTC-USD")
+```
+
+### Importar
+
+Faremos a aquisição das série históricas dos dados com o pacote `quantmod`, veja:
+
+```{r}
+# stocks <-map_df(portifolio, ~tq_get(.x, get = "stock.prices", from = " 2018-01-01"))
+# saveRDS(stocks, "stocks.rds")
+stocks <- readRDS("stocks.rds")
+```
+
+### Arrumar e transformar (tsibble)
+
+<center>
+![](https://blog.earo.me/img/ds-pipeline.png){width=80%}
+</center>
+
+Converter para tibble, preencher espaçoes em branco (finais de semana) como valor anterior
+
+```{r}
+tbl_stocks <- stocks %>% as_tsibble(key = symbol, index = date) 
+```
+
+### Transformar
+
+```{r}
+tbl_stocks <- 
+  tbl_stocks %>% 
+  fill_gaps() %>% 
+  tidyr::fill(c(open, high, low, close, volume, adjusted),.direction = "down")
+```
+
+### Visualizar
+
+```{r}
+# series
+d2 <- 
+  tbl_stocks %>% 
+  group_by(symbol) %>% 
+  summarise(y = mean(close))
+
+autoplot(tbl_stocks)+
+  facet_wrap(~symbol, scales = "free_y", ncol = 1)+
+  theme(legend.position = "bottom") + 
+  geom_area(aes(color = symbol, fill = symbol), 
+            alpha = 0.5, position = position_dodge(0.8)) + 
+  stat_smooth(color = "#FC4E07", fill = "#FC4E07", linetype = 2, size = 0.7,method = "loess")
+
+```
+
+sazonalidade
+
+```{r}
+gg_season(tbl_stocks)+
+  facet_wrap(~symbol, scales = "free_y", ncol = 1)+
+  theme(legend.position = "bottom")
+```
+
+Correlacoes
+
+```{r, fig.height=3, fig.width=4, fig.align="center"}
+tbl_stocks %>%
+  as_tibble() %>% 
+  select(symbol, date, close) %>% 
+  spread(key = symbol, value = close) %>%
+  GGally::ggpairs(columns = 2:4)
+```
+
+
+```{r, eval = F, echo = F}
+# Decomposicao das series
+dcmp <- tbl_stocks %>% model(STL(close))
+
+dcmp %>% filter(symbol == .$symbol[1]) %>% components() %>% autoplot()
+dcmp %>% filter(symbol == .$symbol[2]) %>% components() %>% autoplot()
+dcmp %>% filter(symbol == .$symbol[3]) %>% components() %>% autoplot()
+```
+
+Forecast com h2o
+
+<https://www.business-science.io/code-tools/2017/10/28/demo_week_h2o.html>
+
+```{r}
+data_split1 <- Sys.Date()-30*4
+data_split2 <- Sys.Date()-30*1
+
+# Plot Beer Sales with train, validation, and test sets shown
+tbl_stocks %>%
+  ggplot(aes(date, close)) +
+  geom_rect(xmin = as.numeric(data_split1), xmax = as.numeric(data_split2),
+            ymin = 0, ymax = Inf, alpha = 0.02, fill = "#C1C3E3") +
+  geom_rect(xmin = as.numeric(data_split2), xmax = as.numeric(Sys.Date()),
+            ymin = 0, ymax = Inf, alpha = 0.02, fill = "#E8D3D3") +
+  geom_line(col = palette_light()[1]) +
+  geom_ma(ma_fun = SMA, n = 30, size = 1) +
+  scale_x_date(date_breaks = "6 month", date_labels = "%m/%y") +
+  facet_wrap(~symbol, ncol = 1, scales = "free_y")
+```
+
+```{r, eval = F}
+tbl_stocks_automl <- 
+  tbl_stocks %>% 
+  as_tibble() %>% 
+  transmute(symbol, day = lubridate::day(date), 
+            month = lubridate::month(date),
+            year = lubridate::year(date), 
+            close = log(close), 
+            wday = lubridate::wday(date),
+            diff = close - lag(close),
+            diff2 = diff - lag(diff),
+            date) %>%
+  slice(-1) %>% 
+  group_by(symbol) %>% 
+  nest() %>% 
+  mutate(train_h2o = map(data, ~.x %>% 
+                           filter(date <= data_split1) %>% 
+                           select(-date) %>% as.h2o()),
+         valid_h2o = map(data, ~.x %>% 
+                           filter(date > data_split1 & date <= data_split2) %>% 
+                           select(-date) %>% as.h2o()) ,
+         test_h2o  = map(data, ~.x %>% 
+                           filter(date > data_split2) %>% 
+                           select(-date) %>% as.h2o()),
+         automl_models_h2o = pmap(list(train_h2o = train_h2o,
+                                       valid_h2o = valid_h2o,
+                                       test_h2o = test_h2o),
+                                  function(train_h2o, valid_h2o, test_h2o){
+                                    automl_models_h2o <- h2o.automl(
+                                      x = setdiff(names(train_h2o), "close"), 
+                                      y = "close", 
+                                      training_frame = train_h2o, 
+                                      validation_frame = valid_h2o, 
+                                      leaderboard_frame = test_h2o, 
+                                      max_runtime_secs = 60*10, 
+                                      verbosity = NULL,
+                                      stopping_metric = "deviance")
+                                  }),
+         automl_leader = map(automl_models_h2o, ~ .x@leader) ,
+         pred_h2o =  map2(automl_leader, test_h2o, ~h2o.predict(.x, newdata = .y)),
+         error_tbl = map2(data, pred_h2o, 
+                          ~.x %>% filter(date > data_split2) %>%
+                            add_column(pred = .y %>% as_tibble() %>% pull(predict)) %>%
+                            rename(actual = close) %>%
+                            mutate(error     = actual - pred,
+                                   error_pct = error / actual) )  
+         
+  )
+saveRDS(tbl_stocks_automl, "tbl_stocks_automl.rds")
+```
+
+```{r,eval = T}
+tbl_stocks_automl <- readRDS("tbl_stocks_automl.rds")
+```
+
+Avaliar performance dos modelos:
+
+```{r}
+# map2(tbl_stocks_automl$automl_leader, tbl_stocks_automl$test_h2o,
+#      ~ h2o.performance(.x, newdata = .y))
+
+pmap(list(.x = tbl_stocks_automl$data, 
+          .y = tbl_stocks_automl$error_tbl,
+          .z = tbl_stocks_automl$symbol),
+     function(.x, .y, .z){
+       .x %>%
+         ggplot(aes(x = date, y = close)) +
+         geom_rect(xmin = as.numeric(data_split1),
+                   xmax = as.numeric(data_split2),
+                   ymin = 0, ymax = Inf, alpha = 0.015,
+                   fill = "#C1C3E3") +
+         geom_rect(xmin = as.numeric(data_split2), 
+                   xmax = as.numeric(Sys.Date()),
+                   ymin = 0, ymax = Inf, alpha = 0.015,
+                   fill = "#E8D3D3") +
+         geom_line(aes(y = close), size = 0.5) +
+         geom_ma(n = 30, color = "red") +
+         geom_line(aes(y = pred), color = "blue", size = 0.5, data = .y)+
+         labs(y = .z)
+       
+     } 
+) %>% { .[[1]] / .[[2]] / .[[3]] }
+```
+
+
+```{r, eval = F, echo = F}
+# Forecast
+tbl_stocks_train <-  tbl_stocks %>% filter(date <= Sys.Date()-30*2)
+tbl_stocks_test <- tbl_stocks %>% filter(date > Sys.Date()-30*2)
+
+tbl_stocks_train
+
+tbl_stocks_fit <- 
+  tbl_stocks_train %>%
+  model(
+    MEAN(close),
+    NAIVE(close),
+    ETS(close),
+    ARIMA(close),
+    TSLM(close ~ trend() + season())
+  )
+
+h <- tbl_stocks_test %>% filter(symbol == .$symbol[1]) %>% nrow()
+tbl_stocks_fc <- tbl_stocks_fit %>% forecast(h=h)
+
+tbl_stocks_fc %>%
+  autoplot(tbl_stocks_test, level = NULL) +
+  autolayer(tbl_stocks, close, color='black') +
+  xlab("Year") + ylab("Megalitres") +
+  ggtitle("Forecasts for quarterly beer production") +
+  guides(colour=guide_legend(title="Forecast"))
+
+accuracy(tbl_stocks_fc, tbl_stocks_test) %>% arrange(symbol)
+```
+
+Parece interessante, vamos às compras!
+
+# Comprando acoes
+
+após todo o estudo para a elaboracao da carteira chegou a hora das compras.
+
+Suponha que tivessemos realizado nossas compra no fechamento do dia 09/01/2020, quando as cotações eram as seguintes:
+
+```{r}
+tbl_stocks %>% 
+  filter(date == "2020-01-09") %>% 
+  mutate(close = cell_spec(moeda_real(close), "html",
+                           color = "blue")) %>% 
+  mutate_at(c(3:5, 8), ~moeda_real(.x)) %>% 
+  kable2()
+```
+
+```{r}
+cot_inicio = c(elet = 39.35, tupy = 26.05)
+qtd_inicio = c(elet = 190, tupy = 90)
+```
+
+Neste dia a cotação para ELET3 era `r moeda_real(cot_inicio)[1]` e TUPY3 era `r moeda_real(cot_inicio)[2]` e suponha que tenhamos comprado `r qtd_inicio[1]` lotes fracionarios de ELET3 e `r qtd_inicio[2]` de TUPY, totalizando `r moeda_real(sum(qtd_inicio * cot_inicio))` (próximo ao que avíamos planejado no inicio do estudo)
+
+Note que o valor do Bitcoin está em dólares, para obter o valor em reai daquele dia vamos utilizar a API do Mercado Bitcoin:
+
+```{r}
+url <- glue::glue("https://www.mercadobitcoin.net/api/BTC/day-summary/2020/01/09/")
+safe_fromJSON <- safely(fromJSON, as.numeric(NA)) 
+consulta <- safe_fromJSON(url)$result %>% as_tibble() 
+
+consulta %>%
+  select(-date) %>% 
+  mutate_all(~moeda_real(.x)) %>%
+  mutate(closing = cell_spec(closing, "html", color = "blue")) %>% 
+  kable2()
+```
+
+O preço de fechamento foi de `r moeda_real(consulta$closing)`, suponhamos que tenha sido este o valor pago no dia. (Parece que neste dia o dolar estava em torno de `r moeda_real(consulta$closing / (tbl_stocks %>% filter(date == "2020-01-09") %>% pull(close) %>% .[1]))`)
+
+```{r}
+cot_inicio[3] <- consulta$closing
+qtd_inicio[3] <- 0.032
+```
+
+Portanto, ao valor de `r moeda_real(cot_inicio[3])` compramos `r qtd_inicio[3]` Bitcoin totalizano `r cot_inicio[3] * qtd_inicio[3]` completando nossa carteira.
+
+## Tabela financeira
+
+Semelhante a uma planilha financeira, criaremos uma tabela financeira automatizada que receberá como input os valores da montagem e calculará automaticamente os valores do desmontagem no tempo atual utilizando dados de apis abertas.
+
+Primeiro valos obter as cotacoes mais recentes das cotações das acoes que compramos na bolsa:
+
+Obter dados da alphavantager 
+https://www.business-science.io/code-tools/2017/09/03/alphavantager-0-1-0.html
+
+
+```{r}
+av_api_key(key)
+
+consulta_acoes <- map_df(portifolio[1:2], ~{
+  # cat(paste0("Coletar: ", .x, "\n"))
+  av_get(symbol = .x,
+         av_fun = "TIME_SERIES_INTRADAY",
+         interval = "1min",  # "1min", "5min", "15min", "30min" ou "60min"
+         outputsize = "compact") %>%  # "full"
+    bind_cols(stock = rep(.x, nrow(.)))
+}
+) 
+```
+
+```{r, eval=F}
+consulta_acoes %>% 
+  as_tsibble(key = stock, index = timestamp) %>% 
+  autoplot()+
+  facet_wrap(~stock, scales = "free_y", ncol = 1)+
+  theme(legend.position = "bottom")
+```
+
+Coletar a cotação do Bitcoin (em reais) mais recente:
+
+[Api do mercado bitcoin](https://www.mercadobitcoin.com.br/api-doc/?)
+
+```{r}
+coin <- "BTC"
+method <- "ticker"
+url <- glue::glue("https://www.mercadobitcoin.net/api/{coin}/{method}/")
+
+safe_fromJSON <- safely(fromJSON, as.numeric(NA)) 
+consulta_bitcoin <- 
+  safe_fromJSON(url)$result$ticker %>% 
+  as_tibble() %>% 
+  transmute(timestamp = lubridate::ymd_hms(as.POSIXct(date, origin="1970-01-01")),
+            open, high, low, close = sell, volume = NA, stock = "BTC.BR") %>% 
+  mutate_at(c('open', 'high', 'low', 'close'), ~as.numeric(.x))
+```
+
+Combinar e padronizar as requisições:
+
+```{r}
+consulta_atual <- 
+  bind_rows(
+    consulta_acoes %>% 
+      group_by(stock) %>% 
+      filter(timestamp == last(timestamp))
+    ,
+    consulta_bitcoin
+  ) 
+
+consulta_atual  %>%
+  mutate_at(2:4, ~moeda_real(.x)) %>% 
+  mutate(close = cell_spec(moeda_real(close), "html", color = "blue")) %>% 
+  kable2()
+```
+
+
+```{r}
+# Tabela resultado
+financas <- 
+  tibble(
+    ativo = portifolio,
+    # inicio
+    cot_inicio = cot_inicio,
+    qtd_inicio = qtd_inicio,
+    vol_inicio = cot_inicio * qtd_inicio,
+    # Desinicio / Atual
+    cot_atual = consulta_atual$close,
+    qtd_atual = qtd_inicio,
+    vol_atual = cot_atual * qtd_atual,
+    # Resultado
+    ganho_perda = vol_atual - vol_inicio,
+    resultado_bruto = ganho_perda / vol_inicio * 100
+  )
+
+```
+
+```{r}
+porcentagem <- function(x){paste0(round(x,2), "%")}
+
+# Exibicao
+financas  %>%
+  mutate(
+    cot_inicio = moeda_real(cot_inicio),
+    cot_atual = moeda_real(cot_atual),
+    vol_inicio = moeda_real(vol_inicio),
+    vol_atual = moeda_real(vol_atual),
+    qtd_inicio = round(qtd_inicio,4),
+    qtd_atual = round(qtd_atual,4),
+    # vol_atual = color_bar("lightgreen")(round(vol_atual, 2)),
+    # vol_inicio = color_bar("lightgreen")(round(vol_inicio, 2)),
+    `Vender?` = ifelse(ganho_perda > 0,"\u2713", "\u2718") ,
+    ganho_perda = cell_spec(moeda_real(ganho_perda), "html",
+                            color = ifelse(ganho_perda > 0, "green", "red")),
+    resultado_bruto = cell_spec(porcentagem(resultado_bruto), "html",
+                                color = ifelse(resultado_bruto > 0, "green", "red"))) %>% 
+  kable(format = "html", escape = F) %>%
+  kable_styling(c("striped", "bordered", "hover", "responsive"), full_width = F) %>%
+  add_header_above(c(" ", "Montagem" = 3, "Desmontagem / Atual" = 3, "Resultado" = 3))
+```
+
+# Bot Telegram
+
+```{r}
+
+# Definir bot
+bot <- TGBot$new(token = bot_token('fgstockbot'))
+
+# Conectar ao R
+bot$set_default_chat_id(bot$getUpdates()$message$chat$id[1])
+```
+
+```{r,eval = F}
+acompanhar_bitcoin <- function(frequencia = 60) {
+  # load("historico.RData")
+
+  # loop infinito
+  while(
+    Sys.time() > lubridate::ymd_hm("2020-03-14 10:00") & # abertura
+    Sys.time() < lubridate::ymd_hm(paste0(Sys.Date(), " 17:00")) # fechamento
+  ) {
+    
+    # Requisicao das cotacoes atuais
+    # Acoes
+    consulta_acoes <- map_df(portifolio[1:2], ~{
+      # cat(paste0("Coletar: ", .x, "\n"))
+      av_get(symbol = .x,
+             av_fun = "TIME_SERIES_INTRADAY",
+             interval = "1min",  # "1min", "5min", "15min", "30min" ou "60min"
+             outputsize = "compact") %>%  # "full"
+        bind_cols(stock = rep(.x, nrow(.)))
+    }
+    ) 
+    
+    # Bitcoin
+    coin = "BTC"
+    method = "ticker"
+    url = glue::glue("https://www.mercadobitcoin.net/api/{coin}/{method}/")
+    
+    safe_fromJSON <- safely(fromJSON, as.numeric(NA)) 
+    
+    consulta_bitcoin <- 
+      safe_fromJSON(url)$result$ticker %>% 
+      as_tibble() %>% 
+      transmute(timestamp = lubridate::ymd_hms(as.POSIXct(date, origin="1970-01-01")),
+                open, high, low, close = sell, volume = NA, stock = "BTC.BR") %>% 
+      mutate_at(c('open', 'high', 'low', 'close'), ~as.numeric(.x))
+    
+    # Combinar requisicoes
+    consulta_atual <- 
+      bind_rows(
+        consulta_acoes %>% 
+          group_by(stock) %>% 
+          filter(timestamp == last(timestamp))
+        ,
+        consulta_bitcoin
+      ) 
+    
+    
+    # verifica se a API retornou uma lista 
+    if(!is.null(consulta_atual)) {
+      
+      # Tabela resultado
+      financas <- 
+        tibble(
+          ativo = portifolio,
+          # inicio
+          cot_inicio = cot_inicio,
+          qtd_inicio = qtd_inicio,
+          vol_inicio = cot_inicio * qtd_inicio,
+          # Desinicio / Atual
+          cot_atual = consulta_atual$close,
+          qtd_atual = qtd_inicio,
+          vol_atual = cot_atual * qtd_atual,
+          # Resultado
+          ganho_perda = vol_atual - vol_inicio,
+          resultado_bruto = ganho_perda / vol_inicio * 100
+        )
+      
+      porcentagem <- function(x){paste0(round(x,2), "%")}
+      
+      # Exibicao
+      tabela <- 
+        financas  %>%
+        mutate(
+          cot_inicio = moeda_real(cot_inicio),
+          cot_atual = moeda_real(cot_atual),
+          vol_inicio = moeda_real(vol_inicio),
+          vol_atual = moeda_real(vol_atual),
+          qtd_inicio = round(qtd_inicio,4),
+          qtd_atual = round(qtd_atual,4),
+          # vol_atual = color_bar("lightgreen")(round(vol_atual, 2)),
+          # vol_inicio = color_bar("lightgreen")(round(vol_inicio, 2)),
+          `Vender?` = ifelse(ganho_perda > 0,"\u2713", "\u2718") , 
+          ganho_perda = cell_spec(moeda_real(ganho_perda), "html",
+                                  color = ifelse(ganho_perda > 0, "green", "red")),
+          resultado_bruto = cell_spec(porcentagem(resultado_bruto), "html",
+                                      color = ifelse(resultado_bruto > 0, "green", "red"))) %>% 
+        kable(format = "html", escape = F) %>%
+        kable_styling(c("striped", "bordered", "hover", "responsive"), full_width = F) %>%
+        add_header_above(c(" ", "Montagem" = 3, "Desmontagem / Atual" = 3, "Resultado" = 3))
+      
+      save_kable(tabela, file = "table.png", self_contained = F)
+      
+      cat("Preparar para enviar menssagem..\n")
+      bot$sendPhoto('table.png', caption = paste0("Tabela de resultados - ",Sys.time()))
+      cat("Menssagem enviada!\n")
+    }
+    
+    cat(paste0("Aguarde ", frequencia, " segundos..\n"))
+    Sys.sleep(frequencia/2)
+    cat(paste0("Aguarde ", round(frequencia/2,1), " segundos..\n"))
+    Sys.sleep(frequencia/2)
+    
+  }
+}
+
+acompanhar_bitcoin()
+```
+
+# Referencias
+
+* <https://www.investidor.gov.br/menu/primeiros_passos/antes_investir/antes_investir.html>
+* <https://www.btgpactualdigital.com/blog/investimentos/diversificacao-de-investimentos>
+* <https://www.btgpactualdigital.com/blog/coluna-gustavo-cerbasi/defina-sua-estrategia-entre-renda-fixa-ou-variavel>
+* <https://blog.earo.me/2018/12/20/reintro-tsibble/>
+* <https://www.tradingcomdados.com/post/2017/07/09/estudo-de-correla%C3%A7%C3%A3o-entre-a%C3%A7%C3%B5es-da-bolsa-de-valores-de-s%C3%A3o-paulo>
+* <https://www.business-science.io/code-tools/2017/10/28/demo_week_h2o.html>

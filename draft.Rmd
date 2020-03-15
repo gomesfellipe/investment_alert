@@ -1,26 +1,217 @@
 ---
-title: "Untitled"
-author: "MTBR - ModelThinkingBR"
+title: ""
+author: ""
 date: "3/12/2020"
 output: html_document
 ---
+
+```{r, include = F}
+# Pacotes
+library(telegram)
+library(dplyr)
+library(purrr)
+library(alphavantager)
+library(knitr)
+library(kableExtra)
+library(formattable)
+
+library(jsonline)
+
+# carteira = c("BTC-USD", "ITSA4.SA","PETR4.SA",  "GOAU4.SA", "MYPK3.SA", "MGLU3", "COGN3.SA")
+
+# ref
+# https://www.curso-r.com/blog/2017-08-19-r-telegram-bitcoin/
+
+# Obter dados da alphavantager
+# https://www.business-science.io/code-tools/2017/09/03/alphavantager-0-1-0.html
+key <- "TIMTJBAT1ENM1XF1"
+av_api_key(key)
+```
+
+```{r}
+coin <- "BTC"
+method <- "ticker"
+url <- glue::glue("https://www.mercadobitcoin.net/api/{coin}/{method}/")
+
+safe_fromJSON <- safely(fromJSON, as.numeric(NA)) 
+nova_consulta_list <- safe_fromJSON(url)$result$ticker %>% as_tibble()
+
+```
+
+
+
+```{r}
+# Inputs
+ativos = c("PETR4.SA", "MYPK3.SA", "MGLU3.SA", "ITSA4.SA", "PTBL3.SA")
+cot_inicio = c(13.00, 13.06, 40.50, 11.06, 4.66)
+qtd_inicio = c(100, 70, 30, 110, 100)
+
+# Requisicao das cotacoes atuais
+request <- map(ativos, ~{
+  cat(paste0("Coletar: ", .x, "\n"))
+  av_get(symbol = .x,
+         av_fun = "TIME_SERIES_INTRADAY",
+         interval = "1min",  # "1min", "5min", "15min", "30min" ou "60min"
+         outputsize = "compact") # "full"
+}
+) %>% `names<-`(ativos)
+
+# saveRDS(request, "develop.rds")
+request <- readRDS("develop.rds")
+```
+
+Erro: Thank you for using Alpha Vantage! Our standard API call frequency is 5 calls per minute and 500 calls per day.
+
+```{r}
+# Tabela resultado
+financas <- 
+  tibble(
+    ativo = paste0(ativos, ".SA"),
+    # inicio
+    cot_inicio = cot_inicio,
+    qtd_inicio = qtd_inicio,
+    vol_inicio = cot_inicio * qtd_inicio,
+    # Desinicio / Atual
+    cot_atual = map_dbl(request, ~last(.x$close)),
+    qtd_atual = qtd_inicio,
+    vol_atual = cot_atual * qtd_atual,
+    # Resultado
+    ganho_perda = vol_atual - vol_inicio,
+    resultado_bruto = ganho_perda / vol_inicio * 100
+  )
+```
+
+```{r}
+moeda <- function(x){paste0("", format(round(x,2), big.mark = ".", decimal.mark = ","))}
+porcentagem <- function(x){paste0(round(x,2), "%")}
+
+# Exibicao
+financas  %>%
+  mutate(
+    cot_inicio = moeda(cot_inicio),
+    cot_atual = moeda(cot_atual),
+    vol_inicio = moeda(vol_inicio),
+    vol_atual = moeda(vol_atual),
+    qtd_inicio = round(qtd_inicio,4),
+    qtd_atual = round(qtd_atual,4),
+    # vol_atual = color_bar("lightgreen")(round(vol_atual, 2)),
+    # vol_inicio = color_bar("lightgreen")(round(vol_inicio, 2)),
+    `Vender?` = ifelse(ganho_perda > 0,"\u2713", "\u2718") ,
+    ganho_perda = cell_spec(moeda(ganho_perda), "html",
+                            color = ifelse(ganho_perda > 0, "green", "red")),
+    resultado_bruto = cell_spec(porcentagem(resultado_bruto), "html",
+                                color = ifelse(resultado_bruto > 0, "green", "red"))) %>% 
+  kable(format = "html", escape = F) %>%
+  kable_styling(c("striped", "bordered", "hover", "responsive"), full_width = F) %>%
+  add_header_above(c(" ", "Montagem" = 3, "Desmontagem / Atual" = 3, "Resultado" = 3))
+  save_kable(file = "table2.html", self_contained = T)
+```
+
+```{r}
+# Definir bot
+bot <- TGBot$new(token = bot_token('fgstockbot'))
+
+# Conectar ao R
+bot$set_default_chat_id(bot$getUpdates()$message$chat$id[1])
+```
+
+
+```{r}
+
+acompanhar_bitcoin <- function(frequencia = 60) {
+  # load("historico.RData")
+  
+  
+  # loop infinito
+  while(
+    !Sys.time() > lubridate::ymd_hm("2020-03-14 10:00") & # abertura
+    Sys.time() < lubridate::ymd_hm(paste0(Sys.Date(), " 17:00")) # fechamento
+  ) {
+    
+    # Requisicao das cotacoes atuais
+    request <- map(ativos, ~{
+      cat(paste0("Coletar: ", .x, "\n"))
+      av_get(symbol = .x,
+             av_fun = "TIME_SERIES_INTRADAY",
+             interval = "1min",  # "1min", "5min", "15min", "30min" ou "60min"
+             outputsize = "compact") # "full"
+    }
+    ) %>% `names<-`(ativos)
+    
+    # verifica se a API retornou uma lista 
+    if(is.list(request)) {
+      
+      financas <- 
+        tibble(
+          ativo = paste0(ativos, ".SA"),
+          # inicio
+          cot_inicio = cot_inicio,
+          qtd_inicio = qtd_inicio,
+          vol_inicio = cot_inicio * qtd_inicio,
+          # Desinicio / Atual
+          cot_atual = map_dbl(request, ~last(.x$close)),
+          qtd_atual = qtd_inicio,
+          vol_atual = cot_atual * qtd_atual,
+          # Resultado
+          ganho_perda = vol_atual - vol_inicio,
+          resultado_bruto = ganho_perda / vol_inicio * 100
+        )
+      
+      # Exibicao
+      tabela <- 
+        financas  %>%
+        mutate(
+          cot_inicio = moeda(cot_inicio),
+          cot_atual = moeda(cot_atual),
+          vol_inicio = moeda(vol_inicio),
+          vol_atual = moeda(vol_atual),
+          qtd_inicio = round(qtd_inicio,4),
+          qtd_atual = round(qtd_atual,4),
+          # vol_atual = color_bar("lightgreen")(round(vol_atual, 2)),
+          # vol_inicio = color_bar("lightgreen")(round(vol_inicio, 2)),
+          `Vender?` = ifelse(ganho_perda > 0,"\u2713", "\u2718") ,
+          ganho_perda = cell_spec(moeda(ganho_perda), "html",
+                                  color = ifelse(ganho_perda > 0, "green", "red")),
+          resultado_bruto = cell_spec(porcentagem(resultado_bruto), "html",
+                                      color = ifelse(resultado_bruto > 0, "green", "red"))) %>% 
+        kable(format = "html", escape = F) %>%
+        kable_styling(c("striped", "bordered", "hover", "responsive"), full_width = F) %>%
+        add_header_above(c(" ", "Montagem" = 3, "Desmontagem / Atual" = 3, "Resultado" = 3))
+      
+      save_kable(tabela, file = "table.png", self_contained = F)
+      
+      
+      cat("Preparar para enviar menssagem..\n")
+      bot$sendPhoto('table.png', caption = paste0("Tabela de resultados (",Sys.time(),")"))
+      cat("Menssagem enviada!\n")
+    }
+    
+    cat(paste0("Aguarde ", frequencia, " segundos..\n"))
+    Sys.sleep(frequencia/2)
+    cat(paste0("Aguarde ", round(frequencia/2,1), " segundos..\n"))
+    Sys.sleep(frequencia/2)
+    
+  }
+}
+
+acompanhar_bitcoin()
+```
+
+
+
+fim
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(dplyr)
 library(purrr)
-library(alphavantager) # https://www.business-science.io/code-tools/2017/09/03/alphavantager-0-1-0.html
+library(alphavantager)
 library(tidyquant)
-library(ggplot)
+library(ggplot2)
 library(GGally)
 library(forecast)
 
 
-# carteira = c("BTC-USD", "ITSA4.SA","PETR4.SA",  "GOAU4.SA", "MYPK3.SA", "MGLU3", "COGN3.SA")
-
-key <- "TIMTJBAT1ENM1XF1"
-av_api_key(key)
-print(av_api_key())
 
 ```
 
@@ -28,14 +219,14 @@ print(av_api_key())
 
 ```{r}
 calcular_carteira <- function(renda_variavel = NULL){
-  
-    renda_fixa <- (renda_variavel * 0.6) / 0.3
-    crypto_moeda <- renda_variavel / 3
-    entrada <- renda_fixa + renda_variavel + crypto_moeda
-    
+
+  renda_fixa <- (renda_variavel * 0.6) / 0.3
+  crypto_moeda <- renda_variavel / 3
+  entrada <- renda_fixa + renda_variavel + crypto_moeda
+
   return(
-    c(entrada = entrada, 
-      renda_fixa = renda_fixa, 
+    c(entrada = entrada,
+      renda_fixa = renda_fixa,
       renda_variavel = renda_variavel,
       crypto_moeda = crypto_moeda)
   )
@@ -44,18 +235,34 @@ calcular_carteira <- function(renda_variavel = NULL){
 calcular_carteira(renda_variavel = 7500)
 ```
 
+# Qual sera portifolio?
+
 ```{r}
 portifolio = c("PETR4.SA","ITSA4.SA", "BTC-USD")
 ```
 
 ```{r}
-stocks <- 
-  portifolio %>% 
-  map(~getSymbols(.x, auto.assign = F, from = "2018-01-01"))
+stocks <-
+  portifolio %>%
+  map(~getSymbols(.x, auto.assign = F, from = "2018-01-01")) %>%
+  `names<-`(portifolio)
+```
 
-stocks[[1]] %>% highcharter::hchart()
-stocks[[2]] %>% highcharter::hchart()
-stocks[[3]] %>% highcharter::hchart()
+Conferir o comportamento nos ultimos 2 anos
+
+```{r}
+highcharter::hchart(stocks$PETR4.SA)
+highcharter::hchart(stocks$ITSA4.SA)
+highcharter::hchart(stocks$`BTC-USD`)
+```
+
+```{r}
+portifolio_data <- Reduce(merge, stocks) %>% na.fill(., 0)
+
+```
+
+
+```{r}
 
 
 
@@ -69,15 +276,15 @@ itsa4 %>% highcharter::hchart()
 ```
 
 ```{r, eval = F}
-request <- 
-  portifolio %>% 
-  (function(x){map(x, ~quantmod::getSymbols(.x, auto.assign = F, from = "2019-01-01")) %>% 
+request <-
+  portifolio %>%
+  (function(x){map(x, ~quantmod::getSymbols(.x, auto.assign = F, from = "2019-01-01")) %>%
       map2_df(x, ~
                 .x %>%
                 zoo::fortify.zoo() %>%
                 as_tibble() %>%
-                `colnames<-`(c("index", "open", "high", "low", 
-                               "close", "volume", "adjusted")) %>% 
+                `colnames<-`(c("index", "open", "high", "low",
+                               "close", "vol", "adjusted")) %>%
                 mutate(stock = .y)
       )})
 ```
@@ -88,7 +295,7 @@ Comportamento das series
 request %>%
   ggplot(aes(x = index, y = close)) +
   geom_candlestick(aes(open = open, high = high, low = low, close = close),
-                   colour_up = "darkgreen", colour_down = "darkred", 
+                   colour_up = "darkgreen", colour_down = "darkred",
                    fill_up  = "darkgreen", fill_down  = "darkred") +
   theme_bw()+
   facet_wrap(~stock, scales = "free_y", ncol = 1)
@@ -97,11 +304,11 @@ request %>%
 correlacoes
 
 ```{r}
-request %>% 
-  select(index, close, stock) %>% 
-  tidyr::spread(key = stock, value = close) %>% 
-  filter(!is.na(PETR4.SA)) %>% 
-  select(-index) %>% 
+request %>%
+  select(index, close, stock) %>%
+  tidyr::spread(key = stock, value = close) %>%
+  filter(!is.na(PETR4.SA)) %>%
+  select(-index) %>%
   cor(method = "spearman")
 ```
 
@@ -114,7 +321,7 @@ request[[1]] %>% .[,grep("Close", colnames(.))]
 
 ```{r}
 request <- map(carteira, ~av_get(symbol = .x,
-                                 av_fun = "TIME_SERIES_INTRADAY", 
+                                 av_fun = "TIME_SERIES_INTRADAY",
                                  interval = "15min", # "1min", "5min", "15min", "30min" ou "60min"
                                  outputsize = "full") # "compact"
 ) %>% `names<-`(carteira)
@@ -122,4 +329,4 @@ tidyquant::tq_portfolio()
 
 ```
 
-Erro: Thank you for using Alpha Vantage! Our standard API call frequency is 5 calls per minute and 500 calls per day.
+
