@@ -11,27 +11,22 @@ output: html_document
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous"> 
 </style>
 
+
+
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = F, warning = F)
+knitr::opts_chunk$set(echo = TRUE, message = F, warning = F, fig.align = "center")
 key <- "TIMTJBAT1ENM1XF1"
 
-library(dplyr) # manipulacao de dados
-library(purrr) # programacao funcional
-library(tidyquant) # aquisicao de dados financeiros
-library(alphavantager) # api para streaming
-library(knitr) # tabela
-library(kableExtra) # formatar tabela
-library(formattable) # extrasformatar tabela
-library(forecast) # series temporais
-library(patchwork) # organizar plots
-library(fpp3) # series temporais
-library(jsonlite) # requisicao de api
-library(tsibble) # series temporais arrumadas
-library(h2o) # automl
-library(telegram) # conectar bot telegram
-
+# Carregar pacotes:
+library(dplyr)         # manipulacao de dados
+library(purrr)         # programacao funcional
+library(knitr)         # tabela
+library(kableExtra)    # formatar tabela
+library(formattable)   # extrasformatar tabela
+library(h2o)
 h2o.init() # start h2o
 h2o.no_progress() # omitir barra de progresso
+# h2o.show_progress() # mostrar barra de progresso (desenvolvimento)
 
 ggplot2::theme_set(ggplot2::theme_bw())
 
@@ -40,151 +35,166 @@ kable2 <- function(x){
     kable(format = "html", escape = F) %>%
     kable_styling(c("striped", "bordered", "hover", "responsive"), full_width = F) 
 }
+source("moeda_real.R")
 ```
 
-![](img1.png)
+<center>![](img1.png){width=80%}</center>
 
 # Por que investir?
 
-Como esta sua situacao financeira?
+Como esta sua situacao financeira? Caso tenha alguma reserva pode ser interessante pensar em investimentos pois a poupança já não é mais garantia de lucro no longo prazo, não acredita?
 
-Caso tenha uma reserva pode ser interessante pensar em investimentos
+Já estamos no início de 2020 e desde 2019 já se liam notícias como esta abaixo que levam à reflexão sobre reeducação financeira pois alertam a sobre a necessidade de procurar novas oportunidades de investimento.
 
-Diferenca de poupar e investir
+<center>![](noticia_poupanca.png){width=50%} <br><small>Fonte: <https://noticias.r7.com/economia/economize/poupanca-em-baixa-exige-busca-por-novos-investimentos-em-2020-25122019></small></center></br>
 
-**Poupar** é acumular valores no presente para utilizá-los no futuro, o que geralmente envolve mudança de hábitos, pois requer uma redução nos gastos pessoais e familiares.
+Com a finalidade de fomentar um pouco a discussão sobre investimentos, trouxe nesse post algumas sugestões e idéias sobre como otimizar nossas escolhas e tentar equilibrar nosso risco em novos investimentos combinando elementos de estatística, machine learning e programação em R.
 
-**Investir** é empregar o dinheiro poupado em aplicações que rendam juros ou outra forma de remuneração ou correção.
+<div class="alert alert-secondary" role="alert">
+`r icon::fa("exclamation-triangle")` **AVISO**: Este post **não** tem como finalidade ser um guia de investimentos (Já existem muitas consultorias especializadas nisso por ai). Todos as decisões tomadas como diversificação da carteira, seleção de ações e critérios para desmontagem da carteira são **exemplos** e servem para ilustrar algumas **possibilidades** que um cientista de dados têm na hora de desenvolver ferramentas para auxiliar à tomada de decisão.
+</div>
 
-Nao existe investimento sem risco
+Ao final do post criaremos um robo que analisará as cotações e enviará menssagens para nós com uma tabela financeira automatizada via telegram como mostra na animação:
 
-Importancia da segurança financeira
+<center>![](report_stocks.gif){width=60%}</center>
+</br>
+Esse será nosso objetivo final, então mão à obra!
+
+## Diferenca de poupar e investir
+
+De acordo com um [especialista entrevistado pela InfoMoney](https://www.infomoney.com.br/minhas-financas/brasileiros-nao-sabem-a-diferenca-entre-poupar-e-investir-afirma-especialista-2/): 
+
+> “Poupar é guardar dinheiro para usar no futuro, comprar alguma coisa com ele. Investimento é juntar dinheiro, não mexer nele, para que este gere rendimentos e aí sim, usar os lucros mais para frente. É o recomendado para quem quer viver de renda no futuro, por exemplo” (...)
+<div align="right"><font size="1">InfoMoney - Ago 2015</font></div>
+
+Ou seja, poupar é acumular agora para utilizr depois, e normalmente envolve mudança de hábitos, pois requer uma redução nos gastos pessoais e familiares, já Investir é usar esse dinheiro poupado em aplicações que rendam.
+
+Como todo mundo sabe, não existe investimento sem risco e este risco deve ser controlado e utilizado a nosso favor de forma que gere alguma segurança financeira.
 
 # Montagem da carteira
-
-Após definir a quantidade a ser investida é hora de divessificar a carteira
 
 <div class="row">
 <div class="col-8">
 
-"Talvez você já tenha ouvido falar essa frase alguma vez na sua vida.
-Não colocar todos os ovos na mesma cesta significa que você deve diversificar o seu investimento."  
+Provamente você já ouviu essa frase alguma vez na vida e ela certamente faz sentido. Não colocar todos os ovos na mesma cesta significa que você deve diversificar o seu investimento.
+
+Diversificar a carteira irá proteger seus investimentos diminuindo o risco pois, imagine só, você investe todo o seu dinheiro em uma empresa e ela passa por alguma crise assim seu dinheiro estará todo comprometido! 
+
+Existem diversos motivos para se diversificar a carteira mas acho que essa metáfora dos ovos já resume bem.
 
 </div> 
-
 <div class="col-4">
-
-![](ovos_mesm_cesta.png){width=50%}
-
+![](ovos_mesm_cesta.png){width=80%}
 </div> 
 </div>
 
-Por que diversificar?
+## Como dividir a carteira?
 
-proteger os rendimentos diminuindo os riscos
+Dependendo do risco que você deseja se expor existem muitas formas de preparar a carteira mas a idéias principal é a seguinte:
+  
+  * Renda fixa: Menor exposição, menor risco
+  * Renda variável: Maior exposição, maior risco
 
-Como dividir?
+Para ajudar a dividir a carteira de investimentos neste post utilizaremos a chamada [Regra (ou Lei) dos 80](https://www.btgpactualdigital.com/blog/coluna-gustavo-cerbasi/defina-sua-estrategia-entre-renda-fixa-ou-variavel).
 
-Para ajudar a dividir a carteira de investimentos com utilizaremos a chamada [regra (ou lei) dos 80](https://www.btgpactualdigital.com/blog/coluna-gustavo-cerbasi/defina-sua-estrategia-entre-renda-fixa-ou-variavel).
-
-A estratégia é a seguinte: subtraia da sua idade o número 80. O resultado dessa conta vai indicar o percentual a ser investido em [renda variável](https://pt.wikipedia.org/wiki/Renda_vari%C3%A1vel)!
-
-Por exemplo, no meu caso: Tenho 26 anos, portanto $80-26 = 54\%$ deverá ser investido em renda variável. Aos 53 anos esse percentual vai cairá para a metade, $27\%$.
+A estratégia é a seguinte: subtraia da sua idade o número 80. O resultado dessa conta vai indicar o percentual a ser investido em [renda variável](https://pt.wikipedia.org/wiki/Renda_vari%C3%A1vel). Por exemplo, no meu caso: tenho 26 anos, portanto $80-26 = 54\%$ deverá ser investido em renda variável. Aos 53 anos esse percentual vai cairá para a metade, $27\%$.
 
 A idéias principal por trás desta regra que é que a cada ano que passa, 1% do montante da renda variável deva ser direcionado para a [renda fixa](https://pt.wikipedia.org/wiki/Renda_fixa).
 
-Testar a função `montagem()` para diverentes cenários:
+Para testar diferentes valores seguindo esta regra desenvolvi uma função que se chama `montagem80()` (que já está disponível no github TODO). Vejamos alguns resultaodos para diferentes cenários e vamos selecionar um para seguir com a montagem da carteira:
 
 ```{r}
-source("montagem.R")
-source("moeda_real.R")
+source("montagem80.R")
 ```
 
 <div class="container">
 <div class="row">
 <div class="col">
 <span class="border border-danger">
-* Entrada de R$20.000,00</span> <span style="color:red">←</span>
+1. Entrada de R$20.000,00</span> `r icon::fa("hand-point-left", color = "#FA504D")`
 ```{r}
-montagem(entrada = 20000, idade = 26)
+montagem80(entrada = 20000, idade = 26)
 ```
 </div>
 <div class="col">
-* R$ 10.000,00 em acoes 
+2. R$ 5.000,00 em acoes 
 ```{r}
-montagem(variavel = 10000, idade = 26)
+montagem80(variavel = 5000, idade = 53)
 ```
-</div>
-<div class="w-100"></div>
-<div class="col">
-* R$5.000,00 em tesouro direto 
-```{r}
-montagem(fixa = 5000, idade = 26)
-```
-</div>
-<div class="col">
-* Montagem de R$20.000,00 aos 53 anos 
-```{r}
-montagem(entrada = 20000, idade = 53)
-```
-</div>
 </div>
 </div>
 
-Das configurações assima, utilizaremos a primeira (assinalada em vermelho) como exemplo, onde:
+Utilizaremos a primeira (1.) que esta assinalada em vermelho como exemplo, onde:
 
-* Entrada: `r moeda_real(montagem(entrada = 20000, idade = 26, return = T)[1])`
-* Renda fixa: `r moeda_real(montagem(entrada = 20000, idade = 26, return = T)[2])`
-* Renda Variavel (Acoes): `r moeda_real(montagem(entrada = 20000, idade = 26, return = T)[3]*.9)`
-* Renda Variavel (Crypt): `r moeda_real(montagem(entrada = 20000, idade = 26, return = T)[3]*.1)` 
+* Entrada: `r moeda_real(montagem80(entrada = 20000, idade = 26, return = T)[1])`
+* Renda fixa: `r moeda_real(montagem80(entrada = 20000, idade = 26, return = T)[2])`
+* Renda Variavel (Acoes): `r moeda_real(montagem80(entrada = 20000, idade = 26, return = T)[3]*.9)`
+* Renda Variavel (Crypt): `r moeda_real(montagem80(entrada = 20000, idade = 26, return = T)[3]*.1)` 
+
+Após definir a quantidade a ser investida é hora de planejar a próxima estapa da divessificação.
 
 ## Renda fixa
 
-Normalmente diversificamos nossa renda fixa também pois ... (TODO)
-
-Para avaliar nossa escolha utilizaremos o simulador disponivel no site <https://verios.com.br/> neste [link](https://simulador-tesouro-direto.verios.com.br/):
+Normalmente diversificamos nossa renda fixa também mas como gostaria de focar nas análises de renda variável utilizaremos o simulador disponivel no site <https://verios.com.br/> neste [link](https://simulador-tesouro-direto.verios.com.br/) para avaliar nossa escolha:
 
 <center>
-![](tesouro_direto.png){width=100%}
-<small>Fonte: <https://simulador-tesouro-direto.verios.com.br/></small>
+![](tesouro_direto.png){width=80%}
+<small></br>Fonte: <https://simulador-tesouro-direto.verios.com.br/></small>
 </center>
+
+A título de exemplo, escolhi o Tesouro Prefixado 2015 (LTN), note que com essa escolha o lucro planejado seria de quase 3 mil reais nos próximos 5 anos.
+
+Volto a lembrar que esta seleção é apenas um exemplo e existem diversas informações a serem levadas em conta ao se fazer esta escolha. Convido o leitor a procurar saber mais sobre os tipos, prós e contras do Tesouro Direto.
 
 ## Renda variável
 
-Para este exemplo escolhe 2 ações 1 crypto moeda:
+Para compor ajudar a compor a parte da cateira que de renda variável selecionei duas ações (de forma totalmente arbitrária para exemplificar neste post) que são inversamente correlacionadas baseado no excelente post \"[Estudo de correlação entre ações da Bolsa de Valores de São Paulo](https://www.tradingcomdados.com/post/2017/07/09/estudo-de-correla%C3%A7%C3%A3o-entre-a%C3%A7%C3%B5es-da-bolsa-de-valores-de-s%C3%A3o-paulo)\" escrito por Victor Gomes onde o autor faz um estudo de correlações das séries históricas de ações de diferentes setores.
 
-* PETR4: Petroleo Brasileiro SA Petrobras Preference Shares
-* ITSA4: Itausa Investimentos Itau SA Preference Shares
-* BTC: Bitcoin 
+O Bitcoin foi selecionado para completar a carteira de renda variável como um ativo de alto risco com bastante volatividade, mas por que assumir este risco? 
+
+São muitas as histórias de pessoas que ficaram milhorárias com o bitcoin pela sua valorização inesperada ao longo do tempo, como por exemplo o [adolescente que ficou milionário aos 18 anos usando bitcoins após fazer aposta com os pais](https://www.infomoney.com.br/mercados/adolescente-fica-milionario-aos-18-anos-usando-bitcoins-apos-fazer-aposta-com-os-pais/). 
+
+Então **eu** acho que 10% dessa nossa carteira (não esqueça que podemos ter mais de uma carteira) é um risco que pode valer a pena correr e por isso vou incluí-lo.
+
+Portanto, para este exemplo consideramos:
+
+* TUPY3.SA: [Tupy](https://www.google.com/search?q=tupy3&oq=tupy3&aqs=chrome..69i57.7273j0j4&sourceid=chrome&ie=UTF-8)
+* ELET3.SA: [Centrais Eletricas Brasileiras SA](https://www.google.com/search?ei=-dxuXtuyNIbR5OUPxY2m8AE&q=ELET3.SA&oq=ELET3.SA&gs_l=psy-ab.3..0.40045.41040..41701...0.2..0.123.237.0j2......0....2j1..gws-wiz.......0i71.a2fjObIM6cM&ved=0ahUKEwibk86a8p3oAhWGKLkGHcWGCR4Q4dUDCAs&uact=5)
+* BTC-USD: [Bitcoin](https://www.google.com/search?ei=JN1uXsDJLJm55OUPj8-c8As&q=bitcoin&oq=bitcoin&gs_l=psy-ab.3.0.0i131i70i258j0i131i67j0i131j0i67j0j0i67j0i131j0i67j0j0i131.25383.26281..27215...0.0..0.175.1147.1j8......0....1..gws-wiz.xu0EQx1CnXI) 
 
 ```{r}
 # portifolio = c("PETR4.SA","FIBR3.SA", "BTC-USD")
 portifolio = c("TUPY3.SA","ELET3.SA", "BTC-USD")
 ```
 
-### Importar
+### Obter dados
 
-Faremos a aquisição das série históricas dos dados com o pacote `quantmod`, veja:
+Faremos a aquisição das série históricas das cotações destes ativoes deste 01/01/2016 utilizando o pacote [`tidyquant`](https://github.com/business-science/tidyquant) que nos retorna os dados das cotações das ações informadas em formado "arrumado" (familiar com funções do [tidyverse](https://www.tidyverse.org/)), veja:
 
 ```{r}
-# stocks <-map_df(portifolio, ~tq_get(.x, get = "stock.prices", from = " 2018-01-01"))
+library(tidyquant) # aquisicao de dados financeiros
+# stocks <-map_df(portifolio, ~tq_get(.x, get = "stock.prices", from = " 2016-01-01"))
 # saveRDS(stocks, "stocks.rds")
 stocks <- readRDS("stocks.rds")
 ```
 
-### Arrumar e transformar (tsibble)
+### Arrumar e transformar 
+
+tsibble
+Para facilitar na manipulação dos dados obtidos vamos converte-los para o formato [tsibble](https://github.com/tidyverts/tsibble) que fornece uma porção de funcionalidades para a análise de séries temporais permitindo seguirmos o seguinte [fluxo de trabalho](https://blog.earo.me/2018/12/20/reintro-tsibble/) com mais fluidez:
 
 <center>
-![](https://blog.earo.me/img/ds-pipeline.png){width=80%}
+![](https://blog.earo.me/img/ds-pipeline.png){width=60%}
 </center>
 
-Converter para tibble, preencher espaçoes em branco (finais de semana) como valor anterior
-
 ```{r}
+library(tsibble) # series temporais arrumadas
 tbl_stocks <- stocks %>% as_tsibble(key = symbol, index = date) 
 ```
 
 ### Transformar
+
+Após converter para tsibble, vamos preencher espaçoes com dados faltantes (como finais de semana, que a bolsa não é operada) como valor do dia anterior:
 
 ```{r}
 tbl_stocks <- 
@@ -195,8 +205,11 @@ tbl_stocks <-
 
 ### Visualizar
 
+Vejamos qual foi o comportamento das séries históricas desde o início de 2016
+
 ```{r}
-# series
+library(forecast) # series temporais
+library(fpp3) # series temporais
 d2 <- 
   tbl_stocks %>% 
   group_by(symbol) %>% 
@@ -211,24 +224,29 @@ autoplot(tbl_stocks)+
 
 ```
 
-sazonalidade
-
-```{r}
+```{r, eval = F, echo=F}
 gg_season(tbl_stocks)+
   facet_wrap(~symbol, scales = "free_y", ncol = 1)+
   theme(legend.position = "bottom")
 ```
 
-Correlacoes
+A série do Bitcoin é a mais imprevisível, houve um pico em 2018 mas após isso não houve nenhum grande pico como aquele. Em breve ocorrerá o [Halving](https://www.infomoney.com.br/onde-investir/halving-conheca-o-processo-que-pode-levar-o-bitcoin-a-uma-nova-explosao-de-preco/) em breve (a contagem regressiva pode acompanhada [neste link](https://www.bitcoinblockhalf.com/)) que é um processo de choque de oferta e ocorre aproximadamente a cada 4 anos e pode ser uma boa oportunidade de retorno.
 
-```{r, fig.height=3, fig.width=4, fig.align="center"}
+As duas séries da bolsa de valores não parecem ter uma corerlação muito forte, os picos ocorrem de forma alternada e isto pode ser uma caracteristica boa para a carteira pois caso uma delas entre em crise a outra poderá estar em uma fase boa.
+
+#### Correlacoes
+
+Para confirmar as conjecturas formdas ao observar o comportamento das séries histórias vamos dar uma olhada nos gráficos de dispersão e coeficientes de correlação de Spearman
+
+```{r, fig.height=4, fig.width=5, fig.align="center"}
 tbl_stocks %>%
   as_tibble() %>% 
   select(symbol, date, close) %>% 
   spread(key = symbol, value = close) %>%
-  GGally::ggpairs(columns = 2:4)
+  GGally::ggpairs(columns = 2:4,
+                  upper = list(continuous = GGally::wrap("cor", method = "spearman")),
+                  lower = list(continuous = GGally::wrap("points", alpha = 0.3,size=0.5)))
 ```
-
 
 ```{r, eval = F, echo = F}
 # Decomposicao das series
@@ -239,52 +257,77 @@ dcmp %>% filter(symbol == .$symbol[2]) %>% components() %>% autoplot()
 dcmp %>% filter(symbol == .$symbol[3]) %>% components() %>% autoplot()
 ```
 
-Forecast com h2o
+### Forecast com H2O
 
 <https://www.business-science.io/code-tools/2017/10/28/demo_week_h2o.html>
 
 ```{r}
-data_split1 <- Sys.Date()-30*4
+data_split1 <- Sys.Date()-30*3
 data_split2 <- Sys.Date()-30*1
+```
 
+```{r, eval = F, echo = F}
 # Plot Beer Sales with train, validation, and test sets shown
 tbl_stocks %>%
   ggplot(aes(date, close)) +
-  geom_rect(xmin = as.numeric(data_split1), xmax = as.numeric(data_split2),
-            ymin = 0, ymax = Inf, alpha = 0.02, fill = "#C1C3E3") +
   geom_rect(xmin = as.numeric(data_split2), xmax = as.numeric(Sys.Date()),
-            ymin = 0, ymax = Inf, alpha = 0.02, fill = "#E8D3D3") +
+            ymin = 0, ymax = Inf, alpha = 0.02, fill = "lightgrey") +
+  geom_rect(xmin = as.numeric(data_split1), xmax = as.numeric(data_split2),
+            ymin = 0, ymax = Inf, alpha = 0.02, fill = "orange") +
   geom_line(col = palette_light()[1]) +
   geom_ma(ma_fun = SMA, n = 30, size = 1) +
   scale_x_date(date_breaks = "6 month", date_labels = "%m/%y") +
   facet_wrap(~symbol, ncol = 1, scales = "free_y")
 ```
 
+```{r}
+pp_data <- function(x){
+  
+  tryCatch({
+    x %>% 
+      transmute(close, 
+                day = lubridate::day(date), 
+                month = lubridate::month(date),
+                year = lubridate::year(date), 
+                wday = lubridate::wday(date),
+                date)    
+  }, error = function(e){
+    x %>% 
+      transmute(day = lubridate::day(date), 
+                month = lubridate::month(date),
+                year = lubridate::year(date), 
+                wday = lubridate::wday(date))    
+  })
+}
+tbl_future1 <- tibble(date = seq.Date(Sys.Date(), Sys.Date()+30, "day"))
+tbl_future <- pp_data(tbl_future1)
+```
+
+
 ```{r, eval = F}
+library(h2o) # automl
+
+# h2o.init() 
+
 tbl_stocks_automl <- 
   tbl_stocks %>% 
-  as_tibble() %>% 
-  transmute(symbol, day = lubridate::day(date), 
-            month = lubridate::month(date),
-            year = lubridate::year(date), 
-            close = log(close), 
-            wday = lubridate::wday(date),
-            diff = close - lag(close),
-            diff2 = diff - lag(diff),
-            date) %>%
-  slice(-1) %>% 
+  as_tibble()  %>%
   group_by(symbol) %>% 
   nest() %>% 
+  mutate(data = map(data, ~pp_data(.x) )) %>% 
+  bind_cols(tibble(future_h2o = list(as.h2o(tbl_future),
+                                     as.h2o(tbl_future),
+                                     as.h2o(tbl_future))) ) %>% 
   mutate(train_h2o = map(data, ~.x %>% 
                            filter(date <= data_split1) %>% 
-                           select(-date) %>% as.h2o()),
-         valid_h2o = map(data, ~.x %>% 
+                           select(-date) %>% as.h2o())) %>% 
+  mutate(valid_h2o = map(data, ~.x %>% 
                            filter(date > data_split1 & date <= data_split2) %>% 
-                           select(-date) %>% as.h2o()) ,
-         test_h2o  = map(data, ~.x %>% 
+                           select(-date) %>% as.h2o()) ) %>% 
+  mutate(test_h2o  = map(data, ~.x %>% 
                            filter(date > data_split2) %>% 
-                           select(-date) %>% as.h2o()),
-         automl_models_h2o = pmap(list(train_h2o = train_h2o,
+                           select(-date) %>% as.h2o())) %>% 
+  mutate(automl_models_h2o = pmap(list(train_h2o = train_h2o,
                                        valid_h2o = valid_h2o,
                                        test_h2o = test_h2o),
                                   function(train_h2o, valid_h2o, test_h2o){
@@ -294,20 +337,21 @@ tbl_stocks_automl <-
                                       training_frame = train_h2o, 
                                       validation_frame = valid_h2o, 
                                       leaderboard_frame = test_h2o, 
-                                      max_runtime_secs = 60*10, 
+                                      max_runtime_secs = 60*5, 
                                       verbosity = NULL,
                                       stopping_metric = "deviance")
-                                  }),
-         automl_leader = map(automl_models_h2o, ~ .x@leader) ,
-         pred_h2o =  map2(automl_leader, test_h2o, ~h2o.predict(.x, newdata = .y)),
-         error_tbl = map2(data, pred_h2o, 
+                                  })) %>% 
+  mutate(automl_leader = map(automl_models_h2o, ~ .x@leader)) %>% 
+  mutate(pred_h2o = map2(automl_leader, test_h2o, ~h2o.predict(.x, newdata = .y))) %>% 
+  mutate(pred_future_h2o = map2(automl_leader, future_h2o, ~h2o.predict(.x, newdata = .y))%>% 
+           map(~as_tibble(.x) %>% bind_cols(tbl_future1))) %>% 
+  mutate(error_tbl = map2(data, pred_h2o, 
                           ~.x %>% filter(date > data_split2) %>%
                             add_column(pred = .y %>% as_tibble() %>% pull(predict)) %>%
                             rename(actual = close) %>%
                             mutate(error     = actual - pred,
-                                   error_pct = error / actual) )  
-         
-  )
+                                   error_pct = error / actual) ))
+
 saveRDS(tbl_stocks_automl, "tbl_stocks_automl.rds")
 ```
 
@@ -318,13 +362,15 @@ tbl_stocks_automl <- readRDS("tbl_stocks_automl.rds")
 Avaliar performance dos modelos:
 
 ```{r}
+library(patchwork) # organizar plots
 # map2(tbl_stocks_automl$automl_leader, tbl_stocks_automl$test_h2o,
 #      ~ h2o.performance(.x, newdata = .y))
 
 pmap(list(.x = tbl_stocks_automl$data, 
           .y = tbl_stocks_automl$error_tbl,
-          .z = tbl_stocks_automl$symbol),
-     function(.x, .y, .z){
+          .z = tbl_stocks_automl$symbol,
+          .w = tbl_stocks_automl$pred_future_h2o),
+     function(.x, .y, .z, .w){
        .x %>%
          ggplot(aes(x = date, y = close)) +
          geom_rect(xmin = as.numeric(data_split1),
@@ -336,6 +382,7 @@ pmap(list(.x = tbl_stocks_automl$data,
                    ymin = 0, ymax = Inf, alpha = 0.015,
                    fill = "#E8D3D3") +
          geom_line(aes(y = close), size = 0.5) +
+         geom_line(aes(y = predict), size = 0.5, data = .w, color = "green") +
          geom_ma(n = 30, color = "red") +
          geom_line(aes(y = pred), color = "blue", size = 0.5, data = .y)+
          labs(y = .z)
@@ -386,8 +433,7 @@ Suponha que tivessemos realizado nossas compra no fechamento do dia 09/01/2020, 
 ```{r}
 tbl_stocks %>% 
   filter(date == "2020-01-09") %>% 
-  mutate(close = cell_spec(moeda_real(close), "html",
-                           color = "blue")) %>% 
+  mutate(close = cell_spec(moeda_real(close), "html", color = "blue")) %>% 
   mutate_at(c(3:5, 8), ~moeda_real(.x)) %>% 
   kable2()
 ```
@@ -402,6 +448,7 @@ Neste dia a cotação para ELET3 era `r moeda_real(cot_inicio)[1]` e TUPY3 era `
 Note que o valor do Bitcoin está em dólares, para obter o valor em reai daquele dia vamos utilizar a API do Mercado Bitcoin:
 
 ```{r}
+library(jsonlite) # requisicao de api
 url <- glue::glue("https://www.mercadobitcoin.net/api/BTC/day-summary/2020/01/09/")
 safe_fromJSON <- safely(fromJSON, as.numeric(NA)) 
 consulta <- safe_fromJSON(url)$result %>% as_tibble() 
@@ -433,10 +480,10 @@ https://www.business-science.io/code-tools/2017/09/03/alphavantager-0-1-0.html
 
 
 ```{r}
+library(alphavantager) # api para streaming
 av_api_key(key)
 
 consulta_acoes <- map_df(portifolio[1:2], ~{
-  # cat(paste0("Coletar: ", .x, "\n"))
   av_get(symbol = .x,
          av_fun = "TIME_SERIES_INTRADAY",
          interval = "1min",  # "1min", "5min", "15min", "30min" ou "60min"
@@ -538,6 +585,7 @@ financas  %>%
 # Bot Telegram
 
 ```{r}
+library(telegram) # conectar bot telegram
 
 # Definir bot
 bot <- TGBot$new(token = bot_token('fgstockbot'))
@@ -547,7 +595,7 @@ bot$set_default_chat_id(bot$getUpdates()$message$chat$id[1])
 ```
 
 ```{r,eval = F}
-acompanhar_bitcoin <- function(frequencia = 60) {
+report_stocks <- function(frequencia = 60) {
   # load("historico.RData")
 
   # loop infinito
@@ -556,10 +604,11 @@ acompanhar_bitcoin <- function(frequencia = 60) {
     Sys.time() < lubridate::ymd_hm(paste0(Sys.Date(), " 17:00")) # fechamento
   ) {
     
+    
     # Requisicao das cotacoes atuais
     # Acoes
     consulta_acoes <- map_df(portifolio[1:2], ~{
-      # cat(paste0("Coletar: ", .x, "\n"))
+      cat(paste0("Coletar: ", .x, "...\n"))
       av_get(symbol = .x,
              av_fun = "TIME_SERIES_INTRADAY",
              interval = "1min",  # "1min", "5min", "15min", "30min" ou "60min"
@@ -568,6 +617,7 @@ acompanhar_bitcoin <- function(frequencia = 60) {
     }
     ) 
     
+    cat(paste0("Coletar: BTC.BR...\n"))
     # Bitcoin
     coin = "BTC"
     method = "ticker"
@@ -582,6 +632,7 @@ acompanhar_bitcoin <- function(frequencia = 60) {
                 open, high, low, close = sell, volume = NA, stock = "BTC.BR") %>% 
       mutate_at(c('open', 'high', 'low', 'close'), ~as.numeric(.x))
     
+    cat(paste0("Combinar bases...\n"))
     # Combinar requisicoes
     consulta_atual <- 
       bind_rows(
@@ -595,7 +646,7 @@ acompanhar_bitcoin <- function(frequencia = 60) {
     
     # verifica se a API retornou uma lista 
     if(!is.null(consulta_atual)) {
-      
+      cat(paste0("Calcular retornos...\n"))
       # Tabela resultado
       financas <- 
         tibble(
@@ -638,7 +689,7 @@ acompanhar_bitcoin <- function(frequencia = 60) {
       
       save_kable(tabela, file = "table.png", self_contained = F)
       
-      cat("Preparar para enviar menssagem..\n")
+      cat("Enviando menssagem..\n")
       bot$sendPhoto('table.png', caption = paste0("Tabela de resultados - ",Sys.time()))
       cat("Menssagem enviada!\n")
     }
@@ -651,14 +702,16 @@ acompanhar_bitcoin <- function(frequencia = 60) {
   }
 }
 
-acompanhar_bitcoin()
+
 ```
 
 # Referencias
 
-* <https://www.investidor.gov.br/menu/primeiros_passos/antes_investir/antes_investir.html>
+* <https://www.infomoney.com.br/minhas-financas/brasileiros-nao-sabem-a-diferenca-entre-poupar-e-investir-afirma-especialista-2/>
 * <https://www.btgpactualdigital.com/blog/investimentos/diversificacao-de-investimentos>
 * <https://www.btgpactualdigital.com/blog/coluna-gustavo-cerbasi/defina-sua-estrategia-entre-renda-fixa-ou-variavel>
 * <https://blog.earo.me/2018/12/20/reintro-tsibble/>
 * <https://www.tradingcomdados.com/post/2017/07/09/estudo-de-correla%C3%A7%C3%A3o-entre-a%C3%A7%C3%B5es-da-bolsa-de-valores-de-s%C3%A3o-paulo>
 * <https://www.business-science.io/code-tools/2017/10/28/demo_week_h2o.html>
+* <https://www.infomoney.com.br/mercados/adolescente-fica-milionario-aos-18-anos-usando-bitcoins-apos-fazer-aposta-com-os-pais/>
+* <https://www.infomoney.com.br/onde-investir/halving-conheca-o-processo-que-pode-levar-o-bitcoin-a-uma-nova-explosao-de-preco/>
