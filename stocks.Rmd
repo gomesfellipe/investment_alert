@@ -1,9 +1,12 @@
 ---
-title: "Untitled"
-author: "MTBR - ModelThinkingBR"
+title: "Como usar IA e uma tabela financeira automatizada auxiliar a operação na bolsa"
+subtitle: "Entenda a lógica de como montar uma carteira, obter dados de finança em tempo real, treinar um modelo de IA e receber análises da carteira automatizada no nosso celular"
+author: "Fellipe Gomes"
 date: "3/14/2020"
 output: html_document
 ---
+
+<!-- Resolver lista de todo -->
 
 <!-- Required meta tags -->
 <style>
@@ -11,11 +14,8 @@ output: html_document
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous"> 
 </style>
 
-
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = F, warning = F, fig.align = "center")
-key <- "TIMTJBAT1ENM1XF1"
 
 # Carregar pacotes:
 library(dplyr)         # manipulacao de dados
@@ -23,10 +23,11 @@ library(purrr)         # programacao funcional
 library(knitr)         # tabela
 library(kableExtra)    # formatar tabela
 library(formattable)   # extrasformatar tabela
-library(h2o)
-h2o.init() # start h2o
-h2o.no_progress() # omitir barra de progresso
-# h2o.show_progress() # mostrar barra de progresso (desenvolvimento)
+library(alphavantager)
+library(prophet)
+
+key <- "TIMTJBAT1ENM1XF1"
+av_api_key(key)
 
 ggplot2::theme_set(ggplot2::theme_bw())
 
@@ -50,14 +51,22 @@ Já estamos no início de 2020 e desde 2019 já se liam notícias como esta abai
 
 Com a finalidade de fomentar um pouco a discussão sobre investimentos, trouxe nesse post algumas sugestões e idéias sobre como otimizar nossas escolhas e tentar equilibrar nosso risco em novos investimentos combinando elementos de estatística, machine learning e programação em R.
 
-<div class="alert alert-secondary" role="alert">
+<div class="alert alert-danger" role="alert">
 `r icon::fa("exclamation-triangle")` **AVISO**: Este post **não** tem como finalidade ser um guia de investimentos (Já existem muitas consultorias especializadas nisso por ai). Todos as decisões tomadas como diversificação da carteira, seleção de ações e critérios para desmontagem da carteira são **exemplos** e servem para ilustrar algumas **possibilidades** que um cientista de dados têm na hora de desenvolver ferramentas para auxiliar à tomada de decisão.
 </div>
 
 Ao final do post criaremos um robo que analisará as cotações e enviará menssagens para nós com uma tabela financeira automatizada via telegram como mostra na animação:
 
-<center>![](report_stocks.gif){width=60%}</center>
+<div class="row">
+<div class="col-4">
+<center>![](watch.png){width=60%}</center> 
+</div>
+<div class="col-8">
+![](report_stocks.gif){width=70%}
+</div> 
+</div>
 </br>
+
 Esse será nosso objetivo final, então mão à obra!
 
 ## Diferenca de poupar e investir
@@ -91,9 +100,9 @@ Existem diversos motivos para se diversificar a carteira mas acho que essa metá
 ## Como dividir a carteira?
 
 Dependendo do risco que você deseja se expor existem muitas formas de preparar a carteira mas a idéias principal é a seguinte:
-  
-  * Renda fixa: Menor exposição, menor risco
-  * Renda variável: Maior exposição, maior risco
+
+* Renda fixa: Menor exposição, menor risco 
+* Renda variável: Maior exposição, maior risco
 
 Para ajudar a dividir a carteira de investimentos neste post utilizaremos a chamada [Regra (ou Lei) dos 80](https://www.btgpactualdigital.com/blog/coluna-gustavo-cerbasi/defina-sua-estrategia-entre-renda-fixa-ou-variavel).
 
@@ -189,7 +198,7 @@ Para facilitar na manipulação dos dados obtidos vamos converte-los para o form
 
 ```{r}
 library(tsibble) # series temporais arrumadas
-tbl_stocks <- stocks %>% as_tsibble(key = symbol, index = date) 
+tbl_stocks <- stocks %>% as_tsibble(key = symbol, index = date, interval="Date") 
 ```
 
 ### Transformar
@@ -209,28 +218,21 @@ Vejamos qual foi o comportamento das séries históricas desde o início de 2016
 
 ```{r}
 library(forecast) # series temporais
-library(fpp3) # series temporais
+library(fpp3)     # series temporais
 d2 <- 
   tbl_stocks %>% 
   group_by(symbol) %>% 
   summarise(y = mean(close))
 
 autoplot(tbl_stocks)+
+  geom_line(aes(group = symbol), color = "black", show.legend = F) + 
   facet_wrap(~symbol, scales = "free_y", ncol = 1)+
-  theme(legend.position = "bottom") + 
-  geom_area(aes(color = symbol, fill = symbol), 
-            alpha = 0.5, position = position_dodge(0.8)) + 
-  stat_smooth(color = "#FC4E07", fill = "#FC4E07", linetype = 2, size = 0.7,method = "loess")
-
+  geom_ma(n=6*30, color = "red") + 
+  theme(legend.position = "none")+
+  labs(subtitle = "média móvel n = 6 meses")
 ```
 
-```{r, eval = F, echo=F}
-gg_season(tbl_stocks)+
-  facet_wrap(~symbol, scales = "free_y", ncol = 1)+
-  theme(legend.position = "bottom")
-```
-
-A série do Bitcoin é a mais imprevisível, houve um pico em 2018 mas após isso não houve nenhum grande pico como aquele. Em breve ocorrerá o [Halving](https://www.infomoney.com.br/onde-investir/halving-conheca-o-processo-que-pode-levar-o-bitcoin-a-uma-nova-explosao-de-preco/) em breve (a contagem regressiva pode acompanhada [neste link](https://www.bitcoinblockhalf.com/)) que é um processo de choque de oferta e ocorre aproximadamente a cada 4 anos e pode ser uma boa oportunidade de retorno.
+A série do Bitcoin é a mais imprevisível, houve um pico em 2018 mas após isso não houve nenhum grande pico como aquele. Em breve ocorrerá o [Halving](https://www.infomoney.com.br/onde-investir/halving-conheca-o-processo-que-pode-levar-o-bitcoin-a-uma-nova-explosao-de-preco/) (a contagem regressiva pode acompanhada [neste link](https://www.bitcoinblockhalf.com/)) que é um processo de choque de oferta e ocorre aproximadamente a cada 4 anos e pode ser uma boa oportunidade de retorno.
 
 As duas séries da bolsa de valores não parecem ter uma corerlação muito forte, os picos ocorrem de forma alternada e isto pode ser uma caracteristica boa para a carteira pois caso uma delas entre em crise a outra poderá estar em uma fase boa.
 
@@ -248,178 +250,74 @@ tbl_stocks %>%
                   lower = list(continuous = GGally::wrap("points", alpha = 0.3,size=0.5)))
 ```
 
-```{r, eval = F, echo = F}
-# Decomposicao das series
-dcmp <- tbl_stocks %>% model(STL(close))
-
-dcmp %>% filter(symbol == .$symbol[1]) %>% components() %>% autoplot()
-dcmp %>% filter(symbol == .$symbol[2]) %>% components() %>% autoplot()
-dcmp %>% filter(symbol == .$symbol[3]) %>% components() %>% autoplot()
-```
-
-### Forecast com H2O
-
-<https://www.business-science.io/code-tools/2017/10/28/demo_week_h2o.html>
+### Forecast com Prophet do Facebook
 
 ```{r}
-data_split1 <- Sys.Date()-30*3
-data_split2 <- Sys.Date()-30*1
+h = 30 * 2
+data_split1 <- Sys.Date() - h
 ```
 
-```{r, eval = F, echo = F}
-# Plot Beer Sales with train, validation, and test sets shown
-tbl_stocks %>%
-  ggplot(aes(date, close)) +
-  geom_rect(xmin = as.numeric(data_split2), xmax = as.numeric(Sys.Date()),
-            ymin = 0, ymax = Inf, alpha = 0.02, fill = "lightgrey") +
-  geom_rect(xmin = as.numeric(data_split1), xmax = as.numeric(data_split2),
-            ymin = 0, ymax = Inf, alpha = 0.02, fill = "orange") +
-  geom_line(col = palette_light()[1]) +
-  geom_ma(ma_fun = SMA, n = 30, size = 1) +
-  scale_x_date(date_breaks = "6 month", date_labels = "%m/%y") +
-  facet_wrap(~symbol, ncol = 1, scales = "free_y")
-```
+Dados de treino e teste serão dividos da seguinte forma: 
+
+* treino: inicio da série até `r data_split1` 
+* teste: de `r data_split1` até o final da série
 
 ```{r}
-pp_data <- function(x){
-  
-  tryCatch({
-    x %>% 
-      transmute(close, 
-                day = lubridate::day(date), 
-                month = lubridate::month(date),
-                year = lubridate::year(date), 
-                wday = lubridate::wday(date),
-                date)    
-  }, error = function(e){
-    x %>% 
-      transmute(day = lubridate::day(date), 
-                month = lubridate::month(date),
-                year = lubridate::year(date), 
-                wday = lubridate::wday(date))    
-  })
-}
-tbl_future1 <- tibble(date = seq.Date(Sys.Date(), Sys.Date()+30, "day"))
-tbl_future <- pp_data(tbl_future1)
-```
-
-
-```{r, eval = F}
-library(h2o) # automl
-
-# h2o.init() 
-
-tbl_stocks_automl <- 
+tbl_stocks_train <-  
   tbl_stocks %>% 
-  as_tibble()  %>%
-  group_by(symbol) %>% 
-  nest() %>% 
-  mutate(data = map(data, ~pp_data(.x) )) %>% 
-  bind_cols(tibble(future_h2o = list(as.h2o(tbl_future),
-                                     as.h2o(tbl_future),
-                                     as.h2o(tbl_future))) ) %>% 
-  mutate(train_h2o = map(data, ~.x %>% 
-                           filter(date <= data_split1) %>% 
-                           select(-date) %>% as.h2o())) %>% 
-  mutate(valid_h2o = map(data, ~.x %>% 
-                           filter(date > data_split1 & date <= data_split2) %>% 
-                           select(-date) %>% as.h2o()) ) %>% 
-  mutate(test_h2o  = map(data, ~.x %>% 
-                           filter(date > data_split2) %>% 
-                           select(-date) %>% as.h2o())) %>% 
-  mutate(automl_models_h2o = pmap(list(train_h2o = train_h2o,
-                                       valid_h2o = valid_h2o,
-                                       test_h2o = test_h2o),
-                                  function(train_h2o, valid_h2o, test_h2o){
-                                    automl_models_h2o <- h2o.automl(
-                                      x = setdiff(names(train_h2o), "close"), 
-                                      y = "close", 
-                                      training_frame = train_h2o, 
-                                      validation_frame = valid_h2o, 
-                                      leaderboard_frame = test_h2o, 
-                                      max_runtime_secs = 60*5, 
-                                      verbosity = NULL,
-                                      stopping_metric = "deviance")
-                                  })) %>% 
-  mutate(automl_leader = map(automl_models_h2o, ~ .x@leader)) %>% 
-  mutate(pred_h2o = map2(automl_leader, test_h2o, ~h2o.predict(.x, newdata = .y))) %>% 
-  mutate(pred_future_h2o = map2(automl_leader, future_h2o, ~h2o.predict(.x, newdata = .y))%>% 
-           map(~as_tibble(.x) %>% bind_cols(tbl_future1))) %>% 
-  mutate(error_tbl = map2(data, pred_h2o, 
-                          ~.x %>% filter(date > data_split2) %>%
-                            add_column(pred = .y %>% as_tibble() %>% pull(predict)) %>%
-                            rename(actual = close) %>%
-                            mutate(error     = actual - pred,
-                                   error_pct = error / actual) ))
+  filter(date <= data_split1) %>% 
+  select(symbol, date, close)
 
-saveRDS(tbl_stocks_automl, "tbl_stocks_automl.rds")
+tbl_stocks_test <- 
+  tbl_stocks %>%
+  filter(date > data_split1) %>% 
+  select(symbol, date, close)
 ```
 
-```{r,eval = T}
-tbl_stocks_automl <- readRDS("tbl_stocks_automl.rds")
-```
-
-Avaliar performance dos modelos:
 
 ```{r}
-library(patchwork) # organizar plots
-# map2(tbl_stocks_automl$automl_leader, tbl_stocks_automl$test_h2o,
-#      ~ h2o.performance(.x, newdata = .y))
+library(prophet)
+library(patchwork)
 
-pmap(list(.x = tbl_stocks_automl$data, 
-          .y = tbl_stocks_automl$error_tbl,
-          .z = tbl_stocks_automl$symbol,
-          .w = tbl_stocks_automl$pred_future_h2o),
-     function(.x, .y, .z, .w){
-       .x %>%
-         ggplot(aes(x = date, y = close)) +
-         geom_rect(xmin = as.numeric(data_split1),
-                   xmax = as.numeric(data_split2),
-                   ymin = 0, ymax = Inf, alpha = 0.015,
-                   fill = "#C1C3E3") +
-         geom_rect(xmin = as.numeric(data_split2), 
-                   xmax = as.numeric(Sys.Date()),
-                   ymin = 0, ymax = Inf, alpha = 0.015,
-                   fill = "#E8D3D3") +
-         geom_line(aes(y = close), size = 0.5) +
-         geom_line(aes(y = predict), size = 0.5, data = .w, color = "green") +
-         geom_ma(n = 30, color = "red") +
-         geom_line(aes(y = pred), color = "blue", size = 0.5, data = .y)+
-         labs(y = .z)
-       
-     } 
-) %>% { .[[1]] / .[[2]] / .[[3]] }
+prophet_results <- 
+  tbl_stocks_train %>% 
+  rename(ds = date, y = close) %>% 
+  nest(data = c(ds, y)) %>% 
+  mutate(pmodel = map(data, ~ prophet(.x, daily.seasonality=TRUE))
+  )%>% 
+  mutate(pprediction = map(pmodel, ~.x %>% 
+                             make_future_dataframe(periods = h + 30*6) %>%
+                             {predict(.x,.)}))
 ```
 
+Veja os resultados do ajuste do modelo:
 
-```{r, eval = F, echo = F}
-# Forecast
-tbl_stocks_train <-  tbl_stocks %>% filter(date <= Sys.Date()-30*2)
-tbl_stocks_test <- tbl_stocks %>% filter(date > Sys.Date()-30*2)
-
-tbl_stocks_train
-
-tbl_stocks_fit <- 
-  tbl_stocks_train %>%
-  model(
-    MEAN(close),
-    NAIVE(close),
-    ETS(close),
-    ARIMA(close),
-    TSLM(close ~ trend() + season())
-  )
-
-h <- tbl_stocks_test %>% filter(symbol == .$symbol[1]) %>% nrow()
-tbl_stocks_fc <- tbl_stocks_fit %>% forecast(h=h)
-
-tbl_stocks_fc %>%
-  autoplot(tbl_stocks_test, level = NULL) +
-  autolayer(tbl_stocks, close, color='black') +
-  xlab("Year") + ylab("Megalitres") +
-  ggtitle("Forecasts for quarterly beer production") +
-  guides(colour=guide_legend(title="Forecast"))
-
-accuracy(tbl_stocks_fc, tbl_stocks_test) %>% arrange(symbol)
+```{r}
+pmap(list(
+  x = prophet_results$pprediction,
+  y = split(tbl_stocks_train, tbl_stocks_train$symbol),
+  z = split(tbl_stocks_test, tbl_stocks_test$symbol),
+  w = prophet_results$symbol
+),function(x, y, z, w){
+  x %>% 
+    as_tibble() %>%
+    mutate(ds=as_date(ds)) %>%
+    select(ds, trend, yhat, yhat_lower, yhat_upper) %>% 
+    ggplot() + 
+    geom_line(aes(x=ds, y=yhat, color="blue"), show.legend = F) +
+    geom_line(data=y, aes(x=date, y=close, color="black"), show.legend = F) +
+    geom_line(data=z, aes(x=date, y=close, color="red"), show.legend = T) +
+    geom_ribbon(aes(x=ds, ymin=yhat_lower, ymax=yhat_upper), alpha=0.2)  +
+    scale_x_date(#limits = c(as.Date("2018-06-01"), Sys.Date() + 30*12), 
+      date_breaks = "6 month", date_labels = "%m/%Y") +
+    theme_bw()+
+    labs(y = w, x = "")+
+    scale_colour_manual(values=c("black","blue","red"), name="", labels=c("treino","modelo","teste"))+
+    theme(legend.position = c(1-0.8,1-0.2), 
+          legend.background = element_rect(fill=alpha('lightgrey', 0.2)),
+          legend.direction = "horizontal")
+}
+) %>% {.[[1]] / .[[2]] / .[[3]]}
 ```
 
 Parece interessante, vamos às compras!
@@ -478,34 +376,29 @@ Primeiro valos obter as cotacoes mais recentes das cotações das acoes que comp
 Obter dados da alphavantager 
 https://www.business-science.io/code-tools/2017/09/03/alphavantager-0-1-0.html
 
-
-```{r}
-library(alphavantager) # api para streaming
-av_api_key(key)
-
-consulta_acoes <- map_df(portifolio[1:2], ~{
-  av_get(symbol = .x,
-         av_fun = "TIME_SERIES_INTRADAY",
-         interval = "1min",  # "1min", "5min", "15min", "30min" ou "60min"
-         outputsize = "compact") %>%  # "full"
-    bind_cols(stock = rep(.x, nrow(.)))
-}
-) 
-```
-
-```{r, eval=F}
-consulta_acoes %>% 
-  as_tsibble(key = stock, index = timestamp) %>% 
-  autoplot()+
-  facet_wrap(~stock, scales = "free_y", ncol = 1)+
-  theme(legend.position = "bottom")
-```
-
 Coletar a cotação do Bitcoin (em reais) mais recente:
 
 [Api do mercado bitcoin](https://www.mercadobitcoin.com.br/api-doc/?)
 
+
 ```{r}
+# Importar dados da bolsa de valores: --------------
+
+library(alphavantager) # api para streaming
+
+# consulta_acoes <- map_df(portifolio[1:2], ~{
+#   alphavantager::av_get(symbol = .x,
+#          av_fun = "TIME_SERIES_INTRADAY",
+#          interval = "1min",  # "1min", "5min", "15min", "30min" ou "60min"
+#          outputsize = "compact") %>%  # "full"
+#     bind_cols(stock = rep(.x, nrow(.)))
+# }
+# )
+# saveRDS(consulta_acoes, "consulta_acoes.rds")
+consulta_acoes <- readRDS("consulta_acoes.rds")
+
+# Impotar dados do bitcoin ------------------------
+
 coin <- "BTC"
 method <- "ticker"
 url <- glue::glue("https://www.mercadobitcoin.net/api/{coin}/{method}/")
@@ -517,28 +410,33 @@ consulta_bitcoin <-
   transmute(timestamp = lubridate::ymd_hms(as.POSIXct(date, origin="1970-01-01")),
             open, high, low, close = sell, volume = NA, stock = "BTC.BR") %>% 
   mutate_at(c('open', 'high', 'low', 'close'), ~as.numeric(.x))
-```
 
-Combinar e padronizar as requisições:
+# Combinar resultados das consultas --------------
 
-```{r}
 consulta_atual <- 
   bind_rows(
     consulta_acoes %>% 
       group_by(stock) %>% 
-      filter(timestamp == last(timestamp))
-    ,
+      filter(timestamp == last(timestamp)),
     consulta_bitcoin
-  ) 
+  )  
+```
 
+Resultados da consulta atual:
+
+```{r}
 consulta_atual  %>%
   mutate_at(2:4, ~moeda_real(.x)) %>% 
   mutate(close = cell_spec(moeda_real(close), "html", color = "blue")) %>% 
   kable2()
 ```
 
+Resultados apos calculos
+
+Tabela de financas com o calculo da desmontagem utilizando cotações em tempo real:
 
 ```{r}
+porcentagem <- function(x){paste0(round(x,2), "%")}
 # Tabela resultado
 financas <- 
   tibble(
@@ -554,15 +452,8 @@ financas <-
     # Resultado
     ganho_perda = vol_atual - vol_inicio,
     resultado_bruto = ganho_perda / vol_inicio * 100
-  )
-
-```
-
-```{r}
-porcentagem <- function(x){paste0(round(x,2), "%")}
-
-# Exibicao
-financas  %>%
+  ) %>%
+  # Preparar tabela:
   mutate(
     cot_inicio = moeda_real(cot_inicio),
     cot_atual = moeda_real(cot_atual),
@@ -577,9 +468,12 @@ financas  %>%
                             color = ifelse(ganho_perda > 0, "green", "red")),
     resultado_bruto = cell_spec(porcentagem(resultado_bruto), "html",
                                 color = ifelse(resultado_bruto > 0, "green", "red"))) %>% 
+  # Exibicao
   kable(format = "html", escape = F) %>%
   kable_styling(c("striped", "bordered", "hover", "responsive"), full_width = F) %>%
   add_header_above(c(" ", "Montagem" = 3, "Desmontagem / Atual" = 3, "Resultado" = 3))
+
+financas
 ```
 
 # Bot Telegram
@@ -597,7 +491,7 @@ bot$set_default_chat_id(bot$getUpdates()$message$chat$id[1])
 ```{r,eval = F}
 report_stocks <- function(frequencia = 60) {
   # load("historico.RData")
-
+  
   # loop infinito
   while(
     Sys.time() > lubridate::ymd_hm("2020-03-14 10:00") & # abertura
@@ -704,6 +598,13 @@ report_stocks <- function(frequencia = 60) {
 
 
 ```
+
+
+Opcções de inovação são inúmeras:
+
+  * Programar o bot para responder a uma menssagem rápida no relógio com o valor de uma previsão
+  * Acompanhar em tempo real o treinamento de um modelo
+
 
 # Referencias
 
