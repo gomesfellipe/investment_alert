@@ -544,7 +544,7 @@ consulta_atual <-
 # Coleta concluida! ==================================================
 ```
 
-Resultados da consulta atual:
+Resultados da consulta atual (após combinar a requisição da bolsa de valores e do mercado bitcoin):
 
 ```{r}
 consulta_atual  %>%
@@ -553,9 +553,20 @@ consulta_atual  %>%
   kable2()
 ```
 
-Resultados apos calculos
 
-Tabela de financas com o calculo da desmontagem utilizando cotações em tempo real:
+Com os valores da Montagem organizados e os valores da Desmontagem coletados em tempo real já podemos contruir nossa tabela financeira automatizada. 
+
+A tabela contem:
+
+  * os valores de cotacão e quantidade adquiridas de cada uma no momento da montagem da carteira;
+  * os valores de cada cotação no momento atual com suas respectivas quantidades disponíveis e os resultados comparando o ganho (ou perda) seguido do resultado bruto caso realize a venda agora. 
+  * a última coluna indica se vale a pena vender ou não aquela cotação considerando que o valor de venda é superior ao valor de compra 
+  
+<div class="alert alert-warning" role="alert">
+`r icon::fa("exclamation-triangle")` **Aviso**: Essa operação de vender o ativo caso o preço da venda seja maior que o da compra é apenas um exemplo! Poderíamos utilizar diversas estatísticas para determinar o momento da operação porém adotei esta apenas para ilustrar o funcionamento da tabela financeira, o limite de opções é a sua criatividade!
+</div>
+
+Veja a tabela funal com os resultados atualizados em tempo real:
 
 ```{r}
 porcentagem <- function(x){paste0(round(x,2), "%")} # Funcao auxiliar
@@ -582,6 +593,7 @@ financas <-
     qtd_inicio = round(qtd_inicio,4),
     qtd_atual = round(qtd_atual,4),
     `Vender?` = ifelse(ganho_perda > 0,"\u2713", "\u2718") ,
+    cot_atual = cell_spec(cot_atual, "html", color = "blue"),
     ganho_perda = cell_spec(moeda_real(ganho_perda), "html",
                             color = ifelse(ganho_perda > 0, 
                                            "green", "red")),
@@ -597,6 +609,8 @@ financas <-
 financas
 ```
 
+Agora que já possuímos nossa requisição completa e arrumada em tempo real precisamos ter acesso a esta informação de forma dinâmica também e para isso utilizaremos o bot do telegram.
+
 # Bot Telegram
 
 [link](https://www.curso-r.com/blog/2017-08-19-r-telegram-bitcoin/) me ajudou bastante auns anos atras e agora usei de referencia para este post
@@ -606,7 +620,7 @@ financas
 <div class="row">
 <div class="col-8">
 </br>
-```{r}
+```{r, eval = F}
 library(telegram) # conectar bot telegram
 
 # Definir bot
