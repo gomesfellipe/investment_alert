@@ -1,2 +1,5 @@
 # investment_alert
-Desenvolvimento do script para alerta de venda de acoes na bolsa
+
+Diretório com arquivos utilizados no desenvolvimento do bot no Telegram para enviar resultados de Machine Learning com Prophet e de uma tabela financeira automatizada para nosso Smartphone
+
+Post publicado no link: <...>
